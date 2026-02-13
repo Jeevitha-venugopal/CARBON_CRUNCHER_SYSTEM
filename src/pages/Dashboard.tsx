@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import CarbonGauge from "@/components/CarbonGauge";
-import { MONTHLY_LIMIT_KG, EMISSION_FACTORS, getRecommendations } from "@/lib/carbon";
+import { MONTHLY_LIMIT_KG, EMISSION_FACTORS } from "@/lib/carbon";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Lightbulb, TrendingDown, TrendingUp, Zap } from "lucide-react";
 
@@ -69,7 +69,19 @@ const Dashboard = () => {
     }))
     .sort((a, b) => b.value - a.value);
 
-  const recommendations = getRecommendations(emissions.map((e) => ({ category: e.category, amount: Number(e.amount) })));
+  // Simple recommendations based on top categories
+  const tips: string[] = [];
+  const sortedCats = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
+  for (const [cat] of sortedCats.slice(0, 3)) {
+    if (["transport", "petrol", "diesel", "car", "bus", "train"].includes(cat)) tips.push("🚌 Use public transport or carpool to reduce emissions");
+    else if (["home_energy", "electricity", "natural_gas"].includes(cat)) tips.push("💡 Switch to LED lighting and solar panels");
+    else if (["food", "meat", "dairy"].includes(cat)) tips.push("🥬 Try plant-based meals a few days a week");
+    else if (["shopping", "clothing"].includes(cat)) tips.push("♻️ Buy second-hand and repair items");
+    else if (cat === "water") tips.push("💧 Install low-flow fixtures");
+    else if (["waste", "waste_general"].includes(cat)) tips.push("🗑️ Compost and increase recycling");
+  }
+  const recommendations = [...new Set(tips)];
+  if (recommendations.length === 0 && emissions.length > 0) recommendations.push("🌱 Keep tracking to maintain your low carbon footprint");
 
   const monthName = new Date().toLocaleString("default", { month: "long", year: "numeric" });
 

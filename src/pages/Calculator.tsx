@@ -6,22 +6,40 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/AppLayout";
 import OCRUploader from "@/components/OCRUploader";
-import ManualInputForm, { ManualEntry } from "@/components/ManualInputForm";
+import QuestionnaireForm from "@/components/QuestionnaireForm";
 import CarbonGauge from "@/components/CarbonGauge";
-import { calculateEmission, getRecommendations, EMISSION_FACTORS, MONTHLY_LIMIT_KG } from "@/lib/carbon";
+import {
+  calcTotalBreakdown, getRecommendations,
+  EMISSION_FACTORS, MONTHLY_LIMIT_KG, calculateEmission,
+  type AllAnswers, type CategoryBreakdown,
+} from "@/lib/carbon";
 import { Button } from "@/components/ui/button";
 import { Calculator as CalcIcon, Leaf, Lightbulb } from "lucide-react";
+
+const defaultAnswers: AllAnswers = {
+  transport: {
+    hasVehicle: false, vehicleType: "", dailyKm: 0, carpools: false,
+    publicTransport: [], domesticFlightsPerYear: 0, internationalFlightsPerYear: 0, walkCycleKm: 0,
+  },
+  homeEnergy: {
+    electricityBill: "1500_3000", householdSize: 4, homeType: "2bhk",
+    climateZone: "warm_humid", cookingFuel: "lpg", lpgCylindersPerYear: 12, pngMonthlyKg: 0,
+  },
+  food: { dietType: "vegetarian", meatFreqPerWeek: 0, dairyFreqPerWeek: 5, riceFreqPerWeek: 7, wasteLevel: "average" },
+  shopping: { clothingLevel: "moderate", electronicsOwned: ["smartphone"], upgradeFrequency: "few_years" },
+  water: { usageLevel: "average", source: "municipal", treatment: "basic" },
+  waste: { wasteSize: "medium", segregation: "partial", disposal: "landfill" },
+};
 
 const CalculatorPage = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [manualEntries, setManualEntries] = useState<ManualEntry[]>([
-    { id: crypto.randomUUID(), type: "", value: 0, emission: 0 },
-  ]);
+  const [answers, setAnswers] = useState<AllAnswers>(defaultAnswers);
   const [ocrEntries, setOcrEntries] = useState<{ category: string; value: number; emission: number }[]>([]);
   const [calculated, setCalculated] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [breakdown, setBreakdown] = useState<CategoryBreakdown[]>([]);
 
   const handleOCRExtracted = (category: string, value: number) => {
     const emission = calculateEmission(category, value);
@@ -36,34 +54,30 @@ const CalculatorPage = () => {
     });
   };
 
-  const manualTotal = manualEntries.reduce((sum, e) => sum + e.emission, 0);
   const ocrTotal = ocrEntries.reduce((sum, e) => sum + e.emission, 0);
-  const grandTotal = manualTotal + ocrTotal;
-
-  const allEmissions = [
-    ...manualEntries.filter((e) => e.emission > 0).map((e) => ({ category: e.type, amount: e.emission })),
-    ...ocrEntries.map((e) => ({ category: e.category, amount: e.emission })),
-  ];
-  const recommendations = calculated ? getRecommendations(allEmissions) : [];
 
   const handleCalculate = () => {
+    const b = calcTotalBreakdown(answers);
+    setBreakdown(b);
     setCalculated(true);
   };
+
+  const questionnaireTotal = breakdown.reduce((sum, b) => sum + b.dailyKg * 30, 0); // monthly
+  const grandTotal = questionnaireTotal + ocrTotal;
+  const recommendations = calculated ? getRecommendations(breakdown) : [];
 
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
 
     const records = [
-      ...manualEntries
-        .filter((e) => e.emission > 0)
-        .map((e) => ({
-          user_id: user.id,
-          source: "manual" as const,
-          category: e.type,
-          amount: e.emission,
-          description: `${e.value} ${EMISSION_FACTORS[e.type]?.unit || "units"}`,
-        })),
+      ...breakdown.filter((b) => b.dailyKg > 0).map((b) => ({
+        user_id: user.id,
+        source: "manual" as const,
+        category: b.category,
+        amount: parseFloat((b.dailyKg * 30).toFixed(2)), // monthly
+        description: `${b.label} — ${b.dailyKg.toFixed(2)} kg/day × 30`,
+      })),
       ...ocrEntries.map((e) => ({
         user_id: user.id,
         source: "ocr" as const,
@@ -74,7 +88,7 @@ const CalculatorPage = () => {
     ];
 
     if (records.length === 0) {
-      toast({ title: "Nothing to save", description: "Add some entries first.", variant: "destructive" });
+      toast({ title: "Nothing to save", description: "Calculate first.", variant: "destructive" });
       setSaving(false);
       return;
     }
@@ -95,19 +109,15 @@ const CalculatorPage = () => {
       <div className="max-w-5xl mx-auto space-y-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-3xl font-display font-bold text-foreground">Carbon Calculator</h1>
-          <p className="text-muted-foreground mt-1">Upload bills or enter activities manually to calculate your footprint.</p>
+          <p className="text-muted-foreground mt-1">Answer questions or upload bills to calculate your Indian carbon footprint.</p>
         </motion.div>
 
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Input Column */}
           <div className="lg:col-span-2 space-y-6">
             {/* OCR Section */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-card rounded-xl p-6 border border-border card-shadow"
-            >
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+              className="bg-card rounded-xl p-6 border border-border card-shadow">
               <OCRUploader onExtracted={handleOCRExtracted} />
               {ocrEntries.length > 0 && (
                 <div className="mt-4 space-y-2">
@@ -122,14 +132,10 @@ const CalculatorPage = () => {
               )}
             </motion.div>
 
-            {/* Manual Section */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-card rounded-xl p-6 border border-border card-shadow"
-            >
-              <ManualInputForm entries={manualEntries} onChange={setManualEntries} />
+            {/* Questionnaire Section */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+              className="bg-card rounded-xl p-6 border border-border card-shadow">
+              <QuestionnaireForm onChange={setAnswers} />
             </motion.div>
 
             {/* Calculate Button */}
@@ -147,37 +153,38 @@ const CalculatorPage = () => {
 
           {/* Results Column */}
           <div className="space-y-6">
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-card rounded-xl p-6 border border-border card-shadow"
-            >
-              <h3 className="font-display font-semibold text-foreground mb-4 text-center">Live Preview</h3>
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}
+              className="bg-card rounded-xl p-6 border border-border card-shadow">
+              <h3 className="font-display font-semibold text-foreground mb-4 text-center">
+                {calculated ? "Monthly Footprint" : "Live Preview"}
+              </h3>
               <CarbonGauge total={grandTotal} />
-              <div className="mt-4 space-y-2 text-sm">
-                <div className="flex justify-between text-muted-foreground">
-                  <span>OCR entries</span>
-                  <span className="font-medium text-foreground">{ocrTotal.toFixed(1)} kg</span>
+              {calculated && breakdown.length > 0 && (
+                <div className="mt-4 space-y-2 text-sm">
+                  {breakdown.filter((b) => b.dailyKg > 0).map((b) => (
+                    <div key={b.category} className="flex justify-between text-muted-foreground">
+                      <span>{b.label}</span>
+                      <span className="font-medium text-foreground">{(b.dailyKg * 30).toFixed(1)} kg</span>
+                    </div>
+                  ))}
+                  {ocrTotal > 0 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>📄 OCR Bills</span>
+                      <span className="font-medium text-foreground">{ocrTotal.toFixed(1)} kg</span>
+                    </div>
+                  )}
+                  <div className="border-t border-border pt-2 flex justify-between font-semibold text-foreground">
+                    <span>Total</span>
+                    <span>{grandTotal.toFixed(1)} kg CO₂/month</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Manual entries</span>
-                  <span className="font-medium text-foreground">{manualTotal.toFixed(1)} kg</span>
-                </div>
-                <div className="border-t border-border pt-2 flex justify-between font-semibold text-foreground">
-                  <span>Total</span>
-                  <span>{grandTotal.toFixed(1)} kg CO₂</span>
-                </div>
-              </div>
+              )}
             </motion.div>
 
             {/* Recommendations */}
             {calculated && recommendations.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-card rounded-xl p-6 border border-border card-shadow"
-              >
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                className="bg-card rounded-xl p-6 border border-border card-shadow">
                 <div className="flex items-center gap-2 mb-3">
                   <Lightbulb className="w-5 h-5 text-accent" />
                   <h3 className="font-display font-semibold text-foreground">Recommendations</h3>

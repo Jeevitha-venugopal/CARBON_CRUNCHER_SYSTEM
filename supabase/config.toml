@@ -1,1 +1,4 @@
 project_id = "vndeaqnbbihywfevhgpn"
+
+[functions.get-climate]
+verify_jwt = false

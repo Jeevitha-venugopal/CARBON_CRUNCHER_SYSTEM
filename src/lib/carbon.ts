@@ -160,7 +160,6 @@ export interface TransportAnswers {
   vehicleType: string;
   dailyKm: number;
   carpools: boolean;
-  publicTransport: { type: string; dailyKm: number }[];
   domesticFlightsPerYear: number;
   internationalFlightsPerYear: number;
   walkCycleKm: number;
@@ -176,12 +175,6 @@ export function calcTransportDaily(a: TransportAnswers): number {
     annual += a.dailyKm * 365 * factor * usage;
   }
 
-  // Public transport
-  a.publicTransport.forEach((pt) => {
-    const factor = PUBLIC_TRANSPORT[pt.type as keyof typeof PUBLIC_TRANSPORT]?.factor || 0;
-    annual += pt.dailyKm * 365 * factor;
-  });
-
   // Flights
   annual += a.domesticFlightsPerYear * FLIGHT_FACTORS.domestic.avgDistance * FLIGHT_FACTORS.domestic.factor * FLIGHT_FACTORS.domestic.rfFactor;
   annual += a.internationalFlightsPerYear * FLIGHT_FACTORS.international.avgDistance * FLIGHT_FACTORS.international.factor * FLIGHT_FACTORS.international.rfFactor;
@@ -191,23 +184,16 @@ export function calcTransportDaily(a: TransportAnswers): number {
 }
 
 export interface HomeEnergyAnswers {
-  electricityBill: string;
   householdSize: number;
-  homeType: string;
   climateZone: string;
   cookingFuel: string;
   lpgCylindersPerYear: number;
   pngMonthlyKg: number;
 }
 
+// Home energy now only calculates cooking fuel emissions.
+// Electricity is handled via OCR bill upload and divided by householdSize in Calculator.
 export function calcHomeEnergyDaily(a: HomeEnergyAnswers): number {
-  // Electricity
-  const annualKwh = ELECTRICITY_BILL_TO_KWH[a.electricityBill] || 5400;
-  const perPerson = annualKwh / Math.sqrt(Math.max(a.householdSize, 1));
-  const climateFactor = CLIMATE_ZONES[a.climateZone]?.factor || 1.0;
-  const elecEmissions = perPerson * climateFactor * GRID_EMISSION_FACTOR;
-
-  // Cooking fuel
   let cookingEmissions = 0;
   if (a.cookingFuel === "lpg") {
     cookingEmissions = a.lpgCylindersPerYear * LPG_CO2_PER_CYLINDER;
@@ -215,7 +201,7 @@ export function calcHomeEnergyDaily(a: HomeEnergyAnswers): number {
     cookingEmissions = a.pngMonthlyKg * 12 * PNG_CO2_PER_KG;
   }
 
-  return (elecEmissions + cookingEmissions) / 365;
+  return cookingEmissions / 365;
 }
 
 export interface FoodDietAnswers {
@@ -237,21 +223,20 @@ export function calcFoodDaily(a: FoodDietAnswers): number {
 }
 
 export interface ShoppingAnswers {
-  clothingLevel: string;
   electronicsOwned: string[];
   upgradeFrequency: string;
 }
 
+// Shopping now only calculates electronics.
+// Clothing is handled via OCR receipt upload.
 export function calcShoppingDaily(a: ShoppingAnswers): number {
-  const clothing = CLOTHING_ANNUAL_CO2[a.clothingLevel]?.value || 188;
-
   const upgradeFactor = ELECTRONICS_UPGRADE_MULTIPLIERS[a.upgradeFrequency]?.factor || 1.0;
   const electronics = a.electronicsOwned.reduce(
     (sum, e) => sum + (ELECTRONICS_ANNUAL_CO2[e] || 0),
     0
   ) * upgradeFactor;
 
-  return (clothing + electronics) / 365;
+  return electronics / 365;
 }
 
 export interface WaterAnswers {
@@ -314,9 +299,9 @@ export function calcTotalBreakdown(answers: AllAnswers): CategoryBreakdown[] {
 
   return [
     { category: "transport", label: "🚗 Transportation", dailyKg: transport, annualKg: transport * 365 },
-    { category: "home_energy", label: "🔌 Home Energy", dailyKg: homeEnergy, annualKg: homeEnergy * 365 },
+    { category: "home_energy", label: "🔌 Cooking Fuel", dailyKg: homeEnergy, annualKg: homeEnergy * 365 },
     { category: "food", label: "🍽️ Food & Diet", dailyKg: food, annualKg: food * 365 },
-    { category: "shopping", label: "🛍️ Shopping & Consumption", dailyKg: shopping, annualKg: shopping * 365 },
+    { category: "shopping", label: "🛍️ Electronics", dailyKg: shopping, annualKg: shopping * 365 },
     { category: "water", label: "💧 Water", dailyKg: water, annualKg: water * 365 },
     { category: "waste", label: "🗑️ Waste", dailyKg: waste, annualKg: waste * 365 },
   ];
@@ -339,7 +324,7 @@ export function getRecommendations(breakdown: CategoryBreakdown[]): string[] {
         tips.push("🥬 Try more plant-based meals and reduce food waste");
         break;
       case "shopping":
-        tips.push("♻️ Buy second-hand clothing, repair electronics, and reduce fast fashion");
+        tips.push("♻️ Repair electronics instead of replacing, extend device lifespans");
         break;
       case "water":
         tips.push("💧 Install low-flow fixtures and use rainwater harvesting");
@@ -354,7 +339,7 @@ export function getRecommendations(breakdown: CategoryBreakdown[]): string[] {
   return tips;
 }
 
-// Legacy export for backward compatibility with OCR uploader
+// Legacy export for OCR uploader — these categories are handled via bill uploads
 export const EMISSION_FACTORS: Record<string, { factor: number; unit: string; label: string }> = {
   electricity: { factor: 0.82, unit: "kWh", label: "Electricity" },
   petrol: { factor: 2.31, unit: "liters", label: "Petrol / Gasoline" },

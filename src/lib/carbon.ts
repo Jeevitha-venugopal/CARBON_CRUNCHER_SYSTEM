@@ -54,10 +54,10 @@ export const HOME_TYPES: Record<string, number> = {
 };
 
 export const CLIMATE_ZONES: Record<string, { label: string; factor: number }> = {
-  hot_dry: { label: "Hot & Dry (Delhi, Rajasthan)", factor: 1.3 },
-  warm_humid: { label: "Warm & Humid (Mumbai, Chennai)", factor: 1.2 },
-  moderate: { label: "Moderate (Bangalore, Pune)", factor: 0.9 },
-  cold: { label: "Cold (Hill Stations)", factor: 1.1 },
+  hot_dry: { label: "Hot & Dry", factor: 1.3 },
+  warm_humid: { label: "Warm & Humid", factor: 1.2 },
+  moderate: { label: "Moderate", factor: 0.9 },
+  cold: { label: "Cold", factor: 1.1 },
 };
 
 export const LPG_CO2_PER_CYLINDER = 42.3; // 14.2 kg × 2.98 kg CO₂/kg

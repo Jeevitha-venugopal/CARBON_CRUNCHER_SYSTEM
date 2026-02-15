@@ -88,6 +88,11 @@ export default function QuestionnaireForm({ onChange }: QuestionnaireFormProps) 
     onChange({ transport, homeEnergy, food, shopping, water, waste });
   }, [transport, homeEnergy, food, shopping, water, waste]);
 
+  // Auto-detect climate zone on mount
+  useEffect(() => {
+    detectClimate();
+  }, []);
+
   const detectClimate = async () => {
     setDetectingClimate(true);
     try {
@@ -203,20 +208,23 @@ export default function QuestionnaireForm({ onChange }: QuestionnaireFormProps) 
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm font-medium">2. Climate zone</Label>
-              <div className="flex gap-2">
-                <Select value={homeEnergy.climateZone} onValueChange={(v) => setHomeEnergy((p) => ({ ...p, climateZone: v }))}>
-                  <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(CLIMATE_ZONES).map(([k, v]) => (
-                      <SelectItem key={k} value={k}>{v.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button variant="outline" size="icon" onClick={detectClimate} disabled={detectingClimate} title="Auto-detect from location">
-                  {detectingClimate ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
+              <Label className="text-sm font-medium">2. Climate zone (auto-detected from your location)</Label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-muted/50">
+                  {detectingClimate ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  ) : (
+                    <MapPin className="w-4 h-4 text-primary" />
+                  )}
+                  <span className="text-sm font-medium text-foreground">
+                    {detectingClimate ? "Detecting..." : (CLIMATE_ZONES[homeEnergy.climateZone]?.label || homeEnergy.climateZone)}
+                  </span>
+                </div>
+                <Button variant="outline" size="sm" onClick={detectClimate} disabled={detectingClimate}>
+                  {detectingClimate ? "Detecting..." : "Re-detect"}
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground">Allow location access to auto-detect your climate zone based on real-time weather data.</p>
             </div>
 
             <div className="space-y-2">

@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { Leaf, Calculator, BarChart3, History, Award, LogOut, Menu, X } from "lucide-react";
+import { Leaf, Calculator, BarChart3, History, Award, Lightbulb, LogOut, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
@@ -10,6 +10,7 @@ const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { to: "/history", label: "History", icon: History },
   { to: "/credits", label: "Credits", icon: Award },
+  { to: "/recommendations", label: "Tips", icon: Lightbulb },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {

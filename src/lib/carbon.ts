@@ -350,7 +350,7 @@ export const EMISSION_FACTORS: Record<string, { factor: number; unit: string; la
   clothing: { factor: 12.5, unit: "items", label: "Clothing Purchased" },
 };
 
-export const OCR_CATEGORIES = ["electricity", "petrol", "diesel", "natural_gas", "bus", "train", "clothing"];
+export const OCR_CATEGORIES = ["electricity", "petrol", "diesel", "bus", "train", "clothing"];
 
 export function calculateEmission(type: string, value: number): number {
   const factor = EMISSION_FACTORS[type];

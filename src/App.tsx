@@ -11,6 +11,7 @@ import Calculator from "./pages/Calculator";
 import Dashboard from "./pages/Dashboard";
 import History from "./pages/History";
 import Credits from "./pages/Credits";
+import Recommendations from "./pages/Recommendations";
 import NotFound from "./pages/NotFound";
 import { Leaf } from "lucide-react";
 
@@ -43,6 +44,7 @@ const App = () => (
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
           <Route path="/credits" element={<ProtectedRoute><Credits /></ProtectedRoute>} />
+          <Route path="/recommendations" element={<ProtectedRoute><Recommendations /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

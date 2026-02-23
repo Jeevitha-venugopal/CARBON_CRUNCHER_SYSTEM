@@ -82,6 +82,17 @@ const CalculatorPage = () => {
     if (!user) return;
     setSaving(true);
 
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+
+    // Build per-category map from breakdown
+    const categoryMap: Record<string, number> = {};
+    for (const b of breakdown) {
+      categoryMap[b.category] = b.monthlyKg;
+    }
+
+    // Save raw emission records
     const records = [
       ...breakdown.filter((b) => b.monthlyKg > 0).map((b) => ({
         user_id: user.id,
@@ -105,13 +116,34 @@ const CalculatorPage = () => {
       return;
     }
 
+    // Save raw records
     const { error } = await supabase.from("emissions").insert(records);
+
+    // Upsert monthly summary
+    const summaryRow = {
+      user_id: user.id,
+      month,
+      year,
+      transport_kg: parseFloat((categoryMap["transport"] || 0).toFixed(2)),
+      electricity_kg: parseFloat(ocrEntries.filter(e => e.category === "electricity").reduce((s, e) => s + e.emission, 0).toFixed(2)),
+      cooking_kg: parseFloat((categoryMap["home_energy"] || 0).toFixed(2)),
+      food_kg: parseFloat((categoryMap["food"] || 0).toFixed(2)),
+      water_kg: parseFloat((categoryMap["water"] || 0).toFixed(2)),
+      waste_kg: parseFloat((categoryMap["waste"] || 0).toFixed(2)),
+      total_kg: parseFloat(grandTotal.toFixed(2)),
+      carbon_credits: parseFloat((grandTotal / 1000).toFixed(4)),
+    };
+
+    const { error: summaryError } = await supabase
+      .from("monthly_summaries")
+      .upsert(summaryRow, { onConflict: "user_id,month,year" });
+
     setSaving(false);
 
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    if (error || summaryError) {
+      toast({ title: "Error", description: (error || summaryError)?.message, variant: "destructive" });
     } else {
-      toast({ title: "Saved!", description: `${records.length} emission records saved.` });
+      toast({ title: "Saved!", description: `${records.length} records + monthly summary stored.` });
       navigate("/dashboard");
     }
   };

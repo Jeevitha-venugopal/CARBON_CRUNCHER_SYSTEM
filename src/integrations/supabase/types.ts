@@ -80,6 +80,57 @@ export type Database = {
         }
         Relationships: []
       }
+      monthly_summaries: {
+        Row: {
+          carbon_credits: number
+          cooking_kg: number
+          created_at: string
+          electricity_kg: number
+          food_kg: number
+          id: string
+          month: number
+          total_kg: number
+          transport_kg: number
+          updated_at: string
+          user_id: string
+          waste_kg: number
+          water_kg: number
+          year: number
+        }
+        Insert: {
+          carbon_credits?: number
+          cooking_kg?: number
+          created_at?: string
+          electricity_kg?: number
+          food_kg?: number
+          id?: string
+          month: number
+          total_kg?: number
+          transport_kg?: number
+          updated_at?: string
+          user_id: string
+          waste_kg?: number
+          water_kg?: number
+          year: number
+        }
+        Update: {
+          carbon_credits?: number
+          cooking_kg?: number
+          created_at?: string
+          electricity_kg?: number
+          food_kg?: number
+          id?: string
+          month?: number
+          total_kg?: number
+          transport_kg?: number
+          updated_at?: string
+          user_id?: string
+          waste_kg?: number
+          water_kg?: number
+          year?: number
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

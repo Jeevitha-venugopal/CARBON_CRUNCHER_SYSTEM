@@ -74,7 +74,7 @@ const CalculatorPage = () => {
     setCalculated(true);
   };
 
-  const questionnaireTotal = breakdown.reduce((sum, b) => sum + b.dailyKg * 30, 0);
+  const questionnaireTotal = breakdown.reduce((sum, b) => sum + b.monthlyKg, 0);
   const grandTotal = questionnaireTotal + ocrTotal;
   const recommendations = calculated ? getRecommendations(breakdown) : [];
 
@@ -83,12 +83,12 @@ const CalculatorPage = () => {
     setSaving(true);
 
     const records = [
-      ...breakdown.filter((b) => b.dailyKg > 0).map((b) => ({
+      ...breakdown.filter((b) => b.monthlyKg > 0).map((b) => ({
         user_id: user.id,
         source: "manual" as const,
         category: b.category,
-        amount: parseFloat((b.dailyKg * 30).toFixed(2)),
-        description: `${b.label} — ${b.dailyKg.toFixed(2)} kg/day × 30`,
+        amount: parseFloat(b.monthlyKg.toFixed(2)),
+        description: `${b.label} — ${b.monthlyKg.toFixed(2)} kg CO₂/month`,
       })),
       ...adjustedOcrEntries.map((e) => ({
         user_id: user.id,
@@ -178,10 +178,10 @@ const CalculatorPage = () => {
               <CarbonGauge total={grandTotal} />
               {calculated && breakdown.length > 0 && (
                 <div className="mt-4 space-y-2 text-sm">
-                  {breakdown.filter((b) => b.dailyKg > 0).map((b) => (
+                  {breakdown.filter((b) => b.monthlyKg > 0).map((b) => (
                     <div key={b.category} className="flex justify-between text-muted-foreground">
                       <span>{b.label}</span>
-                      <span className="font-medium text-foreground">{(b.dailyKg * 30).toFixed(1)} kg</span>
+                      <span className="font-medium text-foreground">{b.monthlyKg.toFixed(1)} kg</span>
                     </div>
                   ))}
                   {ocrTotal > 0 && (

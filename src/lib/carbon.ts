@@ -152,7 +152,7 @@ export const WASTE_DISPOSAL_FACTORS: Record<string, { label: string; factor: num
 };
 
 // ============================================================
-// CALCULATION FUNCTIONS (all return kg CO₂/day)
+// CALCULATION FUNCTIONS (all return kg CO₂/month)
 // ============================================================
 
 export interface TransportAnswers {
@@ -165,22 +165,22 @@ export interface TransportAnswers {
   walkCycleKm: number;
 }
 
-export function calcTransportDaily(a: TransportAnswers): number {
-  let annual = 0;
+export function calcTransportMonthly(a: TransportAnswers): number {
+  let monthly = 0;
 
-  // Personal vehicle
+  // Personal vehicle: dailyKm × 30 × factor × usageFactor
   if (a.hasVehicle && a.vehicleType && a.dailyKm > 0) {
     const factor = VEHICLE_TYPES[a.vehicleType as keyof typeof VEHICLE_TYPES]?.factor || 0;
     const usage = a.carpools ? 0.5 : 1.0;
-    annual += a.dailyKm * 365 * factor * usage;
+    monthly += a.dailyKm * 30 * factor * usage;
   }
 
-  // Flights
-  annual += a.domesticFlightsPerYear * FLIGHT_FACTORS.domestic.avgDistance * FLIGHT_FACTORS.domestic.factor * FLIGHT_FACTORS.domestic.rfFactor;
-  annual += a.internationalFlightsPerYear * FLIGHT_FACTORS.international.avgDistance * FLIGHT_FACTORS.international.factor * FLIGHT_FACTORS.international.rfFactor;
+  // Flights: annual total / 12
+  const domesticAnnual = a.domesticFlightsPerYear * FLIGHT_FACTORS.domestic.avgDistance * FLIGHT_FACTORS.domestic.factor * FLIGHT_FACTORS.domestic.rfFactor;
+  const internationalAnnual = a.internationalFlightsPerYear * FLIGHT_FACTORS.international.avgDistance * FLIGHT_FACTORS.international.factor * FLIGHT_FACTORS.international.rfFactor;
+  monthly += (domesticAnnual + internationalAnnual) / 12;
 
-  // Walking/cycling = 0
-  return annual / 365;
+  return monthly;
 }
 
 export interface HomeEnergyAnswers {
@@ -191,17 +191,16 @@ export interface HomeEnergyAnswers {
   pngMonthlyKg: number;
 }
 
-// Home energy now only calculates cooking fuel emissions.
-// Electricity is handled via OCR bill upload and divided by householdSize in Calculator.
-export function calcHomeEnergyDaily(a: HomeEnergyAnswers): number {
-  let cookingEmissions = 0;
+// Home energy: cooking fuel only. Electricity via OCR.
+export function calcHomeEnergyMonthly(a: HomeEnergyAnswers): number {
+  // LPG: (cylinders/year × 42.3) / 12
+  // PNG: monthlyKg × 2.75
   if (a.cookingFuel === "lpg") {
-    cookingEmissions = a.lpgCylindersPerYear * LPG_CO2_PER_CYLINDER;
+    return (a.lpgCylindersPerYear * LPG_CO2_PER_CYLINDER) / 12;
   } else if (a.cookingFuel === "png") {
-    cookingEmissions = a.pngMonthlyKg * 12 * PNG_CO2_PER_KG;
+    return a.pngMonthlyKg * PNG_CO2_PER_KG;
   }
-
-  return cookingEmissions / 365;
+  return 0;
 }
 
 export interface FoodDietAnswers {
@@ -212,14 +211,14 @@ export interface FoodDietAnswers {
   wasteLevel: string;
 }
 
-export function calcFoodDaily(a: FoodDietAnswers): number {
-  const base = DIET_ANNUAL_CO2[a.dietType] || 610;
+export function calcFoodMonthly(a: FoodDietAnswers): number {
+  const annualBase = DIET_ANNUAL_CO2[a.dietType] || 610;
 
   // Additional rice adjustment (above baseline 5 meals/week)
-  const extraRice = Math.max(a.riceFreqPerWeek - 5, 0) * 2.3 * 0.15 * 52;
+  const extraRiceAnnual = Math.max(a.riceFreqPerWeek - 5, 0) * 2.3 * 0.15 * 52;
 
   const wasteFactor = FOOD_WASTE_MULTIPLIERS[a.wasteLevel]?.factor || 1.0;
-  return ((base + extraRice) * wasteFactor) / 365;
+  return ((annualBase + extraRiceAnnual) * wasteFactor) / 12;
 }
 
 export interface ShoppingAnswers {
@@ -229,14 +228,14 @@ export interface ShoppingAnswers {
 
 // Shopping now only calculates electronics.
 // Clothing is handled via OCR receipt upload.
-export function calcShoppingDaily(a: ShoppingAnswers): number {
+export function calcShoppingMonthly(a: ShoppingAnswers): number {
   const upgradeFactor = ELECTRONICS_UPGRADE_MULTIPLIERS[a.upgradeFrequency]?.factor || 1.0;
-  const electronics = a.electronicsOwned.reduce(
+  const annualElectronics = a.electronicsOwned.reduce(
     (sum, e) => sum + (ELECTRONICS_ANNUAL_CO2[e] || 0),
     0
   ) * upgradeFactor;
 
-  return electronics / 365;
+  return annualElectronics / 12;
 }
 
 export interface WaterAnswers {
@@ -245,13 +244,14 @@ export interface WaterAnswers {
   treatment: string;
 }
 
-export function calcWaterDaily(a: WaterAnswers): number {
+export function calcWaterMonthly(a: WaterAnswers): number {
   const liters = WATER_USAGE_LEVELS[a.usageLevel]?.liters || 150;
   const sourceFactor = WATER_SOURCE_FACTORS[a.source]?.factor || 1.0;
   const treatmentFactor = WATER_TREATMENT_FACTORS[a.treatment]?.factor || 1.0;
-  const adjustedLiters = liters * (sourceFactor + treatmentFactor);
+  // Fix: multiply factors instead of adding them
+  const adjustedLiters = liters * sourceFactor * treatmentFactor;
   const m3PerYear = (adjustedLiters * 365) / 1000;
-  return (m3PerYear * WATER_EMISSION_PER_M3) / 365;
+  return (m3PerYear * WATER_EMISSION_PER_M3) / 12;
 }
 
 export interface WasteAnswers {
@@ -260,7 +260,7 @@ export interface WasteAnswers {
   disposal: string;
 }
 
-export function calcWasteDaily(a: WasteAnswers): number {
+export function calcWasteMonthly(a: WasteAnswers): number {
   const kgPerYear = WASTE_SIZES[a.wasteSize]?.kgPerYear || 182.5;
   const disposalFactor = WASTE_DISPOSAL_FACTORS[a.disposal]?.factor || 0.94;
 
@@ -268,7 +268,7 @@ export function calcWasteDaily(a: WasteAnswers): number {
   if (a.segregation === "yes") segregationReduction = 0.6;
   else if (a.segregation === "partial") segregationReduction = 0.8;
 
-  return (kgPerYear * disposalFactor * segregationReduction) / 365;
+  return (kgPerYear * disposalFactor * segregationReduction) / 12;
 }
 
 // ---- TOTAL ----
@@ -285,34 +285,34 @@ export interface AllAnswers {
 export interface CategoryBreakdown {
   category: string;
   label: string;
-  dailyKg: number;
+  monthlyKg: number;
   annualKg: number;
 }
 
 export function calcTotalBreakdown(answers: AllAnswers): CategoryBreakdown[] {
-  const transport = calcTransportDaily(answers.transport);
-  const homeEnergy = calcHomeEnergyDaily(answers.homeEnergy);
-  const food = calcFoodDaily(answers.food);
-  const shopping = calcShoppingDaily(answers.shopping);
-  const water = calcWaterDaily(answers.water);
-  const waste = calcWasteDaily(answers.waste);
+  const transport = calcTransportMonthly(answers.transport);
+  const homeEnergy = calcHomeEnergyMonthly(answers.homeEnergy);
+  const food = calcFoodMonthly(answers.food);
+  const shopping = calcShoppingMonthly(answers.shopping);
+  const water = calcWaterMonthly(answers.water);
+  const waste = calcWasteMonthly(answers.waste);
 
   return [
-    { category: "transport", label: "🚗 Transportation", dailyKg: transport, annualKg: transport * 365 },
-    { category: "home_energy", label: "🔌 Cooking Fuel", dailyKg: homeEnergy, annualKg: homeEnergy * 365 },
-    { category: "food", label: "🍽️ Food & Diet", dailyKg: food, annualKg: food * 365 },
-    { category: "shopping", label: "🛍️ Electronics", dailyKg: shopping, annualKg: shopping * 365 },
-    { category: "water", label: "💧 Water", dailyKg: water, annualKg: water * 365 },
-    { category: "waste", label: "🗑️ Waste", dailyKg: waste, annualKg: waste * 365 },
+    { category: "transport", label: "🚗 Transportation", monthlyKg: transport, annualKg: transport * 12 },
+    { category: "home_energy", label: "🔌 Cooking Fuel", monthlyKg: homeEnergy, annualKg: homeEnergy * 12 },
+    { category: "food", label: "🍽️ Food & Diet", monthlyKg: food, annualKg: food * 12 },
+    { category: "shopping", label: "🛍️ Electronics", monthlyKg: shopping, annualKg: shopping * 12 },
+    { category: "water", label: "💧 Water", monthlyKg: water, annualKg: water * 12 },
+    { category: "waste", label: "🗑️ Waste", monthlyKg: waste, annualKg: waste * 12 },
   ];
 }
 
 export function getRecommendations(breakdown: CategoryBreakdown[]): string[] {
-  const sorted = [...breakdown].sort((a, b) => b.dailyKg - a.dailyKg);
+  const sorted = [...breakdown].sort((a, b) => b.monthlyKg - a.monthlyKg);
   const tips: string[] = [];
 
   for (const item of sorted.slice(0, 3)) {
-    if (item.dailyKg <= 0) continue;
+    if (item.monthlyKg <= 0) continue;
     switch (item.category) {
       case "transport":
         tips.push("🚌 Use public transport, carpool, or switch to EVs to cut transport emissions");
